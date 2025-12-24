@@ -41,6 +41,34 @@ This makes Asesino Meet ideal for:
 - Anyone who prioritizes privacy over feature bloat  
 
 ---
+## 🧭 How to Use Asesino Meet
+
+Asesino Meet is designed to be simple, fast, and private.  
+You can start a secure one-on-one video call in just a few steps.
+
+### Step 1: Enter Your Email
+- Open Asesino Meet in your browser
+- Enter your **email address**
+- No account creation required
+- Email is used only for **session identification**, not storage
+
+### Step 2: Generate or Enter a Unique Room ID
+- Create a **unique room ID** or share an existing one
+- Room IDs are **temporary and session-based**
+- Only users with the exact room ID can join
+
+### Step 3: Share the Room ID Securely
+- Share the room ID with the other participant
+- Once both participants join, a **direct peer-to-peer connection** is established
+
+### Step 4: Start the Private Call
+- Audio and video streams flow **directly between participants**
+- No media is routed through servers
+- No conversations are recorded or stored
+
+> Asesino Meet enables secure communication using only an email and a unique room ID — nothing more is required.
+
+--- 
 
 ## 🛠️ Tech Stack
 

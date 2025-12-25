@@ -25,6 +25,8 @@ const VideoCall = () => {
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
 
+    const remoteSocketIdRef = useRef(null);
+
     // 1. Get User Media
     useEffect(() => {
         const getMedia = async () => {
@@ -39,7 +41,7 @@ const VideoCall = () => {
                     const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     setStream(audioStream);
                     setMediaReady(true);
-                    setConnectionStatus('Audio Only - Secure');
+                    setConnectionStatus('Audio Only');
                 } catch (err) {
                     setConnectionStatus('No Media Access');
                     setMediaReady(true);
@@ -53,7 +55,8 @@ const VideoCall = () => {
     useEffect(() => {
         if (!stream || !peer || peer.signalingState === 'closed') return;
         stream.getTracks().forEach(track => {
-            const alreadyAdded = peer.getSenders().find(s => s.track === track);
+            const senders = peer.getSenders();
+            const alreadyAdded = senders.find(s => s.track === track);
             if (!alreadyAdded) {
                 peer.addTrack(track, stream);
             }
@@ -91,22 +94,29 @@ const VideoCall = () => {
 
     // 4. Signaling Event Handlers
     const handleOffer = useCallback(async ({ from, offer }) => {
+        console.log('[RTC] Offer received from:', from);
         setRemoteSocketId(from);
+        remoteSocketIdRef.current = from;
         const answer = await createAnswer(offer);
         socket.emit('answer', { to: from, answer });
     }, [socket, createAnswer]);
 
     const handleAnswer = useCallback(async ({ from, answer }) => {
+        console.log('[RTC] Answer received from:', from);
         setRemoteSocketId(from);
-        await peer.setRemoteDescription(answer);
+        remoteSocketIdRef.current = from;
+        await peer.setRemoteDescription(new RTCSessionDescription(answer));
     }, [peer]);
 
     const handleIceCandidate = useCallback(async ({ from, candidate }) => {
+        console.log('[RTC] ICE Candidate received from:', from);
         await addIceCandidate(candidate);
     }, [addIceCandidate]);
 
     const handleUserJoined = useCallback(async ({ emailId, socketId }) => {
+        console.log('[RTC] User joined:', emailId, socketId);
         setRemoteSocketId(socketId);
+        remoteSocketIdRef.current = socketId;
         const offer = await createOffer();
         socket.emit('offer', { to: socketId, offer });
     }, [socket, createOffer]);
@@ -118,11 +128,15 @@ const VideoCall = () => {
         navigate('/', { state: { message: reason } });
     }, [navigate, stream]);
 
-    // 5. Setup Listeners
+    // 5. Room Join Effect (Runs once)
+    useEffect(() => {
+        if (!socket || !mediaReady) return;
+        socket.emit('join-room', { roomId, emailId: email });
+    }, [socket, mediaReady, roomId, email]);
+
+    // 6. Setup Listeners
     useEffect(() => {
         if (!socket || !peer || !mediaReady) return;
-
-        socket.emit('join-room', { roomId, emailId: email });
 
         socket.on('offer', handleOffer);
         socket.on('answer', handleAnswer);
@@ -131,14 +145,18 @@ const VideoCall = () => {
         socket.on('room-closed', handleRoomClosed);
 
         const onIceCandidate = (event) => {
-            if (event.candidate && remoteSocketId) {
-                socket.emit('ice-candidate', { to: remoteSocketId, candidate: event.candidate });
+            if (event.candidate && remoteSocketIdRef.current) {
+                console.log('[RTC] Sending ICE candidate to:', remoteSocketIdRef.current);
+                socket.emit('ice-candidate', { to: remoteSocketIdRef.current, candidate: event.candidate });
             }
         };
 
         const onTrack = (event) => {
+            console.log('[RTC] Remote track received');
             const [remoteStream] = event.streams;
-            if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
+            if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = remoteStream;
+            }
             setConnectionStatus('Encrypted P2P Link Active');
         };
 
@@ -154,7 +172,8 @@ const VideoCall = () => {
             peer.removeEventListener('icecandidate', onIceCandidate);
             peer.removeEventListener('track', onTrack);
         };
-    }, [socket, peer, mediaReady, handleOffer, handleAnswer, handleIceCandidate, handleUserJoined, roomId, email, handleRoomClosed, remoteSocketId]);
+    }, [socket, peer, mediaReady, handleOffer, handleAnswer, handleIceCandidate, handleUserJoined, handleRoomClosed]);
+
 
     return (
         <div className={styles.container}>

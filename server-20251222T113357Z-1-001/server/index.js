@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -12,6 +13,23 @@ const io = new Server(server, {
     }
 });
 
+// Root route to prevent "Cannot GET /" and confirm server is live
+app.get('/', (req, res) => {
+    res.send('<h1>Binary Asesino: Secure Signaling Server is Online</h1><p>This is the backend. Use the client application to start a call.</p>');
+});
+
+// Privacy Setting: Use environment variable, fallback to false (secure by default)
+const LOGGING_ENABLED = process.env.LOGGING_ENABLED === 'true';
+
+function privateLog(message, isSensitive = false) {
+    if (!LOGGING_ENABLED) return;
+    if (isSensitive) {
+        console.log(`[SECURE-NODE] ${message.replace(/./g, (c, i) => i < 10 ? c : '*')}`); // Obfuscate sensitive info
+    } else {
+        console.log(`[SERVER] ${message}`);
+    }
+}
+
 const emailToSocketMapping = new Map();
 const socketToEmailMapping = new Map();
 const meetings = new Map(); // roomId -> { hostEmail, expiryTime, status, participants: [], lastHostDisconnect }
@@ -20,7 +38,7 @@ const EXPIRY_TIME = 60 * 60 * 1000; // 1 hour
 const GRACE_PERIOD = 30 * 1000; // 30 seconds
 
 io.on('connection', (socket) => {
-    console.log(`[SERVER] Connected: ${socket.id}`);
+    privateLog(`Connected: ${socket.id.substring(0, 5)}...`);
 
     socket.on('join-room', (data) => {
         const { roomId, emailId } = data;
@@ -29,9 +47,8 @@ io.on('connection', (socket) => {
 
         // 1. Check if meeting exists and is expired
         if (meeting && meeting.status === 'expired') {
-            // Allow host to "reactivate" a meeting they created
             if (meeting.hostEmail === emailId) {
-                console.log(`[SERVER] Host ${emailId} reactivating Meeting ${roomId}`);
+                privateLog(`Host reactivating session`);
                 meeting.status = 'active';
                 meeting.expiryTime = Date.now() + EXPIRY_TIME;
                 meeting.lastHostDisconnect = null;
@@ -42,14 +59,13 @@ io.on('connection', (socket) => {
 
         // 2. Room capacity check (Max 2)
         if (meeting && meeting.status === 'active' && meeting.participants.length >= 2) {
-            // Check if this is a participant re-joining
             const isRejoining = meeting.participants.includes(socket.id);
             if (!isRejoining) {
                 return socket.emit('join-error', { message: 'Room is full (max 2 participants).' });
             }
         }
 
-        console.log(`[SERVER] Join Room: User ${emailId} -> Room ${roomId}`);
+        privateLog(`User joined room pool`);
 
         // Create meeting if it doesn't exist
         if (!meeting) {
@@ -61,13 +77,11 @@ io.on('connection', (socket) => {
                 lastHostDisconnect: null
             };
             meetings.set(roomId, meeting);
-            console.log(`[SERVER] New Meeting Created. Host: ${emailId}`);
+            privateLog(`New encrypted session created`);
         }
 
-        // If host returns, clear grace period
         if (meeting.hostEmail === emailId) {
             meeting.lastHostDisconnect = null;
-            console.log(`[SERVER] Host ${emailId} is back in Room ${roomId}`);
         }
 
         if (!meeting.participants.includes(socket.id)) {
@@ -79,9 +93,7 @@ io.on('connection', (socket) => {
 
         socket.join(roomId);
 
-        console.log(`[SERVER] Emitting joined-room to ${socket.id}`);
         socket.emit('joined-room', { roomId });
-
         socket.broadcast.to(roomId).emit('user-joined', { emailId, socketId: socket.id });
     });
 
@@ -102,15 +114,13 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         const emailId = socketToEmailMapping.get(socket.id);
-        console.log(`[SERVER] Disconnected: ${emailId || socket.id}`);
 
         meetings.forEach((meeting, roomId) => {
             if (meeting.participants.includes(socket.id)) {
                 meeting.participants = meeting.participants.filter(pid => pid !== socket.id);
 
-                // If the host disconnected, mark the time for grace period
                 if (meeting.hostEmail === emailId) {
-                    console.log(`[SERVER] Host ${emailId} disconnected from ${roomId}. Starting 30s grace period.`);
+                    privateLog(`Host left. Starting grace period.`);
                     meeting.lastHostDisconnect = Date.now();
                 }
             }
@@ -123,28 +133,25 @@ io.on('connection', (socket) => {
     });
 });
 
-// Periodic Expiry & Grace Period Check
+// Periodic Expiry Check
 setInterval(() => {
     const now = Date.now();
     meetings.forEach((meeting, roomId) => {
         if (meeting.status === 'active') {
-            // 1. One-hour hard expiry
             if (now > meeting.expiryTime) {
-                console.log(`[SERVER] Meeting ${roomId} expired after 1 hour.`);
                 meeting.status = 'expired';
                 io.to(roomId).emit('room-closed', { reason: 'Meeting time has expired (1 hour limit).' });
             }
-            // 2. 30-second host grace period
             if (meeting.lastHostDisconnect && (now - meeting.lastHostDisconnect > GRACE_PERIOD)) {
-                console.log(`[SERVER] Host failed to reconnect to ${roomId} within 30s. Closing Room.`);
                 meeting.status = 'expired';
                 io.to(roomId).emit('room-closed', { reason: 'Host has left the meeting.' });
             }
         }
     });
-}, 2000);
+}, 5000);
 
-const PORT = 8001;
+const PORT = process.env.PORT || 8001;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[SERVER] Signaling Server running on http://127.0.0.1:${PORT}`);
+    console.log(`[BINARY-ASESINO] Secure Signaling Online on Port ${PORT}`);
 });
+

@@ -87,21 +87,40 @@
 
 @media (max-width: 768px) {
     .local {
-        width: 150px;
-        height: 110px;
-        top: 10px;
-        right: 10px;
+        width: 130px;
+        height: 180px; /* Portrait aspect ratio more common for mobile */
+        top: auto;
+        bottom: 100px; /* Position above controls */
+        right: 15px;
+        border-radius: 12px;
+    }
+
+    .statusBadge {
+        top: 15px;
+        left: 15px;
+        font-size: 12px;
+        padding: 6px 12px;
     }
 
     .controls {
-        bottom: 20px;
-        padding: 10px 20px;
-        gap: 15px;
+        bottom: 15px;
+        padding: 12px 20px;
+        gap: 20px;
+        width: 90%;
+        max-width: 300px;
     }
 
     .controlBtn {
-        width: 40px;
-        height: 40px;
+        width: 48px; /* Slightly larger for touch */
+        height: 48px;
+    }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+    .local {
+        width: 100px;
+        height: 140px;
     }
 }
 

@@ -122,7 +122,3 @@ Asesino Meet follows a **zero-trust, zero-storage** approach:
 © 2025 **Binary Asesino**. All rights reserved.
 
 Unauthorized copying, modification, distribution, or use of this software, via any medium, is strictly prohibited without explicit permission from the owner.
-
-
-```bash
-npm install
